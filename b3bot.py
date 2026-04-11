@@ -1,4 +1,4 @@
-#Made By @Claxen - Ultimate Flawless Edition
+#Made By @Claxen - Flawless Deployment Edition
 
 import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
@@ -40,7 +40,6 @@ user_cooldowns = {}
 
 URGENT_KEYWORDS = ['fight', 'bully', 'fire', 'khoon', 'marpeet', 'ladiya', 'accident', 'emergency', 'smoke']
 
-# Smart cleaner to remove only specific UI emojis, keeping Hindi/English text safe!
 def strip_emojis(text):
     emojis_to_remove = ['🎒', '💼', '🏢', '📌', '✅', '❌', '⏳', '⚙️', '🔴', '⭐']
     for e in emojis_to_remove:
@@ -51,15 +50,20 @@ def load_data():
     global tickets_db, registered_users
     if os.path.exists(TICKETS_FILE):
         try:
-            with open(TICKETS_FILE, 'r') as f: tickets_db = json.load(f)
-        except: pass
+            with open(TICKETS_FILE, 'r') as f: 
+                tickets_db = json.load(f)
+        except Exception: 
+            pass
+            
     if os.path.exists(USERS_FILE):
         with open(USERS_FILE, 'r') as f:
             for line in f:
-                if line.strip(): registered_users.add(int(line.strip()))
+                if line.strip(): 
+                    registered_users.add(int(line.strip()))
 
 def save_tickets():
-    with open(TICKETS_FILE, 'w') as f: json.dump(tickets_db, f)
+    with open(TICKETS_FILE, 'w') as f: 
+        json.dump(tickets_db, f)
 
 load_data()
 
@@ -88,7 +92,7 @@ def generate_ticket_card(ticket_id, category, user_name):
         title_font = ImageFont.truetype(FONT_PATH, 32)
         label_font = ImageFont.truetype(FONT_PATH, 20)
         value_font = ImageFont.truetype(FONT_PATH, 24)
-    except:
+    except Exception:
         title_font = ImageFont.load_default()
         label_font = ImageFont.load_default()
         value_font = ImageFont.load_default()
@@ -126,9 +130,12 @@ def purge_old_tickets_daemon():
                 if time_passed > PURGE_AFTER_SECONDS:
                     del tickets_db[tid]
                     changed = True
-                    try: bot.send_message(ADMIN_GROUP_ID, f"🚮 <b>Memory Optimized:</b> Ticket {tid} has been auto-purged.", parse_mode="HTML")
-                    except: pass
-        if changed: save_tickets()
+                    try:
+                        bot.send_message(ADMIN_GROUP_ID, f"🚮 <b>Memory Optimized:</b> Ticket {tid} has been auto-purged.", parse_mode="HTML")
+                    except Exception:
+                        pass
+        if changed: 
+            save_tickets()
 
 # ==========================================
 # 🛡️ TELEGRAM COMMANDS & LOGIC
@@ -142,7 +149,9 @@ def send_welcome(message):
     uid = message.chat.id
     if uid not in registered_users:
         registered_users.add(uid)
-        with open(USERS_FILE, 'a') as f: f.write(f"{uid}\n")
+        with open(USERS_FILE, 'a') as f: 
+            f.write(f"{uid}\n")
+            
     user_sessions[uid] = {'name': message.from_user.first_name}
     markup = InlineKeyboardMarkup(row_width=1)
     markup.add(InlineKeyboardButton("🇬🇧 English", callback_data="l_en"), InlineKeyboardButton("🇮🇳 हिंदी", callback_data="l_hi"))
@@ -289,8 +298,10 @@ def delete_ticket(message):
         save_tickets()
         bot.reply_to(message, "🗑️ <b>Deleted.</b>" if lang == 'en' else "🗑️ <b>डिलीट कर दिया गया।</b>", parse_mode="HTML")
         if mid:
-            try: bot.delete_message(ADMIN_GROUP_ID, mid)
-            except: pass
+            try: 
+                bot.delete_message(ADMIN_GROUP_ID, mid)
+            except Exception: 
+                pass
     else:
         bot.reply_to(message, "❌ Denied." if lang == 'en' else "❌ अनुमति नहीं है या टिकट नहीं मिला।")
 
@@ -306,8 +317,10 @@ def broadcast(message):
     if len(msg) < 2: 
         return bot.reply_to(message, "⚠️ Usage: <code>/broadcast Hello everyone!</code>", parse_mode="HTML")
     for u in list(registered_users):
-        try: bot.send_message(u, f"📢 <b>ADMIN ANNOUNCEMENT</b>\n━━━━━━━━━━━━━━\n{msg[1]}", parse_mode="HTML")
-        except: pass
+        try: 
+            bot.send_message(u, f"📢 <b>ADMIN ANNOUNCEMENT</b>\n━━━━━━━━━━━━━━\n{msg[1]}", parse_mode="HTML")
+        except Exception: 
+            pass
     bot.reply_to(message, "✅ Broadcast Sent.")
 
 @bot.message_handler(commands=['unban'], func=lambda m: m.chat.id == ADMIN_GROUP_ID)
@@ -320,7 +333,8 @@ def unban(message):
         if uid in banned_users: 
             banned_users.remove(uid)
             bot.reply_to(message, f"✅ User {uid} Unbanned.")
-    except: pass
+    except Exception: 
+        pass
 
 @bot.message_handler(commands=['export'], func=lambda m: m.chat.id == ADMIN_GROUP_ID)
 def export_csv(message):
@@ -331,7 +345,9 @@ def export_csv(message):
         for tid, d in tickets_db.items():
             rate = f"{d['rating']}" if 'rating' in d else "Not Rated"
             writer.writerow([tid, strip_emojis(d['cat']), strip_emojis(d['status']), rate, d['text']])
-    with open(fn, 'rb') as f: bot.send_document(ADMIN_GROUP_ID, f, caption="📄 Official Excel/CSV Records Generated")
+            
+    with open(fn, 'rb') as f: 
+        bot.send_document(ADMIN_GROUP_ID, f, caption="📄 Official Excel/CSV Records Generated")
     os.remove(fn)
 
 @bot.message_handler(commands=['report'], func=lambda m: m.chat.id == ADMIN_GROUP_ID)
@@ -341,17 +357,34 @@ def report(message):
     ratings = [d['rating'] for d in tickets_db.values() if 'rating' in d]
     avg = f"{round(sum(ratings)/len(ratings), 1)} / 5" if ratings else "N/A"
     
-    html_c = f"<html><head><style>body{{background:#0d1117;color:#c9d1d9;font-family:sans-serif;padding:20px;}}h1{{text-align:center;color:#58a6ff;margin-bottom:5px;}}.trust-score{{text-align:center;color:#d29922;font-size:16px;margin-bottom:20px;font-weight:bold;}}table{{width:100%;border-collapse:collapse;margin-top:20px;}}th,td{{padding:12px;border:1px solid #30363d;text-align:left;}}th{{background:#21262d;color:#8b949e;text-transform:uppercase;font-size:12px;}}.badge{{padding:4px 8px;border-radius:4px;color:white;font-weight:bold;font-size:11px;}}</style></head><body><h1>🛡️ {BOT_NAME} DASHBOARD </h1><div class='trust-score'>School Safety Index: {avg}</div><table><tr><th>ID</th><th>Category</th><th>Status</th><th>Rating</th><th>Complaint</th></tr>"
+    # Adding <meta charset="UTF-8"> to fix the gibberish alien text!
+    html_c = f"""<html><head>
+    <meta charset="UTF-8">
+    <style>
+        body{{background:#0d1117;color:#c9d1d9;font-family:sans-serif;padding:20px;}}
+        h1{{text-align:center;color:#58a6ff;margin-bottom:5px;}}
+        .trust-score{{text-align:center;color:#d29922;font-size:16px;margin-bottom:20px;font-weight:bold;}}
+        table{{width:100%;border-collapse:collapse;margin-top:20px;}}
+        th,td{{padding:12px;border:1px solid #30363d;text-align:left;}}
+        th{{background:#21262d;color:#8b949e;text-transform:uppercase;font-size:12px;}}
+        .badge{{padding:4px 8px;border-radius:4px;color:white;font-weight:bold;font-size:11px;}}
+    </style></head><body>
+    <h1>🛡️ {BOT_NAME} DASHBOARD </h1>
+    <div class='trust-score'>School Safety Index: {avg}</div>
+    <table><tr><th>ID</th><th>Category</th><th>Status</th><th>Rating</th><th>Complaint</th></tr>"""
     
     for tid, d in tickets_db.items():
         st = strip_emojis(d['status'])
         color_key = next((k for k in colors if k in st), 'Unread')
         rate = f"{d['rating']}/5" if 'rating' in d else "-"
         html_c += f"<tr><td style='color:#f85149; font-family:monospace;'>{tid}</td><td>{strip_emojis(d['cat'])}</td><td><span class='badge' style='background:{colors[color_key]};'>{st.upper()}</span></td><td>{rate}</td><td>{d['text']}</td></tr>"
+        
     html_c += "</table><p style='text-align:center; color:#8b949e;'>Generated by Claxen Systems Audit Engine</p></body></html>"
     
-    with open(fn, 'w', encoding='utf-8') as f: f.write(html_c)
-    with open(fn, 'rb') as f: bot.send_document(ADMIN_GROUP_ID, f, caption="📊 Professional Audit Dashboard (Emoji-Free)")
+    with open(fn, 'w', encoding='utf-8') as f: 
+        f.write(html_c)
+    with open(fn, 'rb') as f: 
+        bot.send_document(ADMIN_GROUP_ID, f, caption="📊 Professional Audit Dashboard (Fixed Emojis & UTF-8)")
     os.remove(fn)
 
 @bot.callback_query_handler(func=lambda c: c.data.startswith('rate_'))
@@ -367,22 +400,14 @@ def handle_rating(call):
 @bot.callback_query_handler(func=lambda c: c.data.startswith('st_') or c.data.startswith('admin_ban_'))
 def handle_admin(call):
     if 'ban' in call.data:
-        uid = int(call.data.split('_')[2]); banned_users.add(uid)
+        uid = int(call.data.split('_')[2])
+        banned_users.add(uid)
         return bot.answer_callback_query(call.id, "User Banned! 🚫")
     
     _, action, sid, tid = call.data.split('_')
     
-    # 🌟 MAXIMUM DETAILED PROFESSIONAL MESSAGES
     status_map = {
         'rej': {'label': '❌ Rejected', 'en': f"❌ <b>TICKET REJECTED ({tid})</b>\nUnfortunately, your complaint has been officially rejected by the school administration. Possible reasons include insufficient information provided, or the issue not violating any school policies. If you think this is a mistake, please submit a new detailed report.", 'hi': f"❌ <b>रिपोर्ट खारिज ({tid})</b>\nक्षमा करें, स्कूल प्रशासन ने आपकी शिकायत को आधिकारिक तौर पर खारिज कर दिया है। अधूरी जानकारी या स्कूल के नियमों का उल्लंघन नहीं होना इसका कारण हो सकता है। कृपया नई रिपोर्ट दर्ज करें।"},
         'pen': {'label': '⏳ Pending', 'en': f"⏳ <b>TICKET PENDING ({tid})</b>\nYour report has been successfully placed in the pending queue. The administration is reviewing complaints sequentially. Please be patient, we will get to your issue shortly.", 'hi': f"⏳ <b>प्रोग्रेस अपडेट ({tid})</b>\nआपकी रिपोर्ट अभी पेंडिंग कतार में सुरक्षित है। हमारी टीम शिकायतों की क्रमबद्ध समीक्षा कर रही है। कृपया धैर्य रखें, हम जल्द ही आपकी समस्या देखेंगे।"},
         'wrk': {'label': '⚙️ Working', 'en': f"⚙️ <b>INVESTIGATION STARTED ({tid})</b>\nExcellent news! The school administration has officially started an investigation based on your report. We are actively working on the ground to fix this issue as soon as possible.", 'hi': f"⚙️ <b>कार्यवाही शुरू ({tid})</b>\nअच्छी खबर! स्कूल प्रशासन ने आपकी शिकायत पर आधिकारिक रूप से जांच और कार्यवाही शुरू कर दी है। हम इस समस्या को जल्द से जल्द सुलझाने के लिए काम कर रहे हैं।"},
-        'sol': {'label': '✅ Solved', 'en': f"✅ <b>ISSUE RESOLVED ({tid})</b>\nThe school administration has successfully investigated and resolved your complaint. Thank you for helping us make our school environment safer and better!\n\n<i>Please rate your overall experience below:</i>", 'hi': f"✅ <b>समस्या का समाधान! ({tid})</b>\nस्कूल प्रशासन ने आपकी शिकायत की सफलतापूर्वक जांच कर उसका समाधान कर लिया है। स्कूल को सुरक्षित और बेहतर बनाने में हमारी मदद करने के लिए धन्यवाद!\n\n<i>कृपया अपने अनुभव की रेटिंग दें:</i>"}
-    }
-    
-    current = status_map.get(action)
-    if tid in tickets_db:
-        if action == 'sol':
-            tickets_db[tid]['resolved_at'] = time.time()
-            try: bot.send_message(ADMIN_GROUP_ID, f"🚮 <b>Burn Audit Log Activated:</b> Ticket {tid} will be permanently removed in 7 days.", parse_mode="HTML")
-  
+        'sol': {'label': '✅ Solved', 'en': f"✅ <b>ISSUE RESOLVED ({tid})</b>\nThe school administration has successfully investigated and resolved your complaint. Thank you for helping us make our school environment safer and better!\n\n<i>Please rate your overall experience below:</i>", 'hi': f"✅ <b>समस्या का समाधान! ({tid})</b>\nस्कूल प्रशासन ने आपकी शिकायत की सफलतापूर्वक जांच कर उसका समाधान कर लिया है। स्कूल को सुरक्षित और 
