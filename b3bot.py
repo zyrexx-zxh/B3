@@ -1,4 +1,4 @@
-#Made By @Claxen - Ultimate B3 Edition
+#Made By @Claxen - Ultimate Flawless Edition
 
 import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
@@ -6,7 +6,6 @@ import random
 import os
 import json
 import html
-import re
 import time
 import csv
 from flask import Flask
@@ -41,8 +40,12 @@ user_cooldowns = {}
 
 URGENT_KEYWORDS = ['fight', 'bully', 'fire', 'khoon', 'marpeet', 'ladiya', 'accident', 'emergency', 'smoke']
 
+# Smart cleaner to remove only specific UI emojis, keeping Hindi/English text safe!
 def strip_emojis(text):
-    return re.sub(r'[^\x00-\x7f]', r'', text).strip()
+    emojis_to_remove = ['🎒', '💼', '🏢', '📌', '✅', '❌', '⏳', '⚙️', '🔴', '⭐']
+    for e in emojis_to_remove:
+        text = text.replace(e, '')
+    return text.strip()
 
 def load_data():
     global tickets_db, registered_users
@@ -97,7 +100,7 @@ def generate_ticket_card(ticket_id, category, user_name):
     draw.text((70, 110), "TICKET ID:", fill=label_color, font=label_font)
     draw.text((220, 108), ticket_id, fill=id_accent_color, font=value_font)
     draw.text((70, 170), "Category:", fill=label_color, font=label_font)
-    draw.text((220, 168), category, fill=value_color, font=value_font)
+    draw.text((220, 168), strip_emojis(category), fill=value_color, font=value_font)
     draw.text((70, 230), "Issued To:", fill=label_color, font=label_font)
     draw.text((220, 228), user_name, fill=value_color, font=value_font)
     
@@ -113,7 +116,7 @@ def generate_ticket_card(ticket_id, category, user_name):
 # ==========================================
 def purge_old_tickets_daemon():
     while True:
-        time.sleep(3600) # check hourly
+        time.sleep(3600) 
         current_time = time.time()
         PURGE_AFTER_SECONDS = 7 * 24 * 60 * 60 
         changed = False
@@ -158,44 +161,61 @@ def send_help(message):
             "🔓 /unban &lt;ID&gt; - Unblock User"
         )
         return bot.reply_to(message, admin_help, parse_mode="HTML")
-    bot.reply_to(message, "🛠 <b>MENU</b>\n🚀 /start\n🔎 /status\n🗑️ /delete", parse_mode="HTML")
+    
+    lang = user_sessions.get(uid, {}).get('lang', 'en')
+    help_txt = "🛠 <b>MENU</b>\n🚀 /start\n🔎 /status &lt;ID&gt;\n🗑️ /delete &lt;ID&gt;" if lang == 'en' else "🛠 <b>सहायता</b>\n🚀 /start\n🔎 /status &lt;ID&gt;\n🗑️ /delete &lt;ID&gt;"
+    bot.reply_to(message, help_txt, parse_mode="HTML")
 
 @bot.callback_query_handler(func=lambda c: c.data.startswith('l_'))
 def set_lang(call):
     uid = call.message.chat.id
-    user_sessions[uid]['lang'] = call.data.split('_')[1]
+    lang = call.data.split('_')[1]
+    user_sessions[uid]['lang'] = lang
+    
     markup = InlineKeyboardMarkup(row_width=1)
-    cats = ["🎒 Student Dispute", "💼 Staff Issue", "🏢 Infrastructure", "📌 Other"]
+    cats = ["🎒 Student Dispute", "💼 Staff Issue", "🏢 Infrastructure", "📌 Other"] if lang == 'en' else ["🎒 छात्र विवाद", "💼 स्टाफ समस्या", "🏢 प्रॉपर्टी", "📌 अन्य"]
     for i, cat in enumerate(["Student", "Staff", "Infra", "Other"]):
         markup.add(InlineKeyboardButton(cats[i], callback_data=f"c_{cat}"))
-    bot.edit_message_text("📂 Select Category:", uid, call.message.message_id, reply_markup=markup)
+    
+    txt = "📂 Select Category:" if lang == 'en' else "📂 कैटेगरी चुनें:"
+    bot.edit_message_text(txt, uid, call.message.message_id, reply_markup=markup)
 
 @bot.callback_query_handler(func=lambda c: c.data.startswith('c_'))
 def ask_text(call):
     uid = call.message.chat.id
     user_sessions[uid]['cat'] = call.data.split('_')[1]
-    bot.edit_message_text("✍️ Type your complaint details:", uid, call.message.message_id)
+    lang = user_sessions[uid].get('lang', 'en')
+    
+    txt = "✍️ Type your complaint details:" if lang == 'en' else "✍️ अपनी शिकायत विस्तार से लिखें:"
+    bot.edit_message_text(txt, uid, call.message.message_id)
     bot.register_next_step_handler_by_chat_id(uid, handle_complaint_text)
 
 def handle_complaint_text(message):
     uid = message.chat.id
     current_time = time.time()
+    lang = user_sessions.get(uid, {}).get('lang', 'en')
     
     if uid in user_cooldowns:
         time_passed = current_time - user_cooldowns[uid]
         if time_passed < 300:
             remaining = int((300 - time_passed) / 60)
-            return bot.reply_to(message, f"⏳ <b>Cooldown Active!</b>\nPlease wait {remaining} more minutes.", parse_mode="HTML")
+            wait_msg = f"⏳ <b>Cooldown Active!</b>\nPlease wait {remaining} more minutes." if lang == 'en' else f"⏳ <b>कृपया प्रतीक्षा करें!</b>\nअगली शिकायत के लिए {remaining} मिनट रुकें।"
+            return bot.reply_to(message, wait_msg, parse_mode="HTML")
 
     if is_abusive(message.text):
         bot.send_message(ADMIN_GROUP_ID, f"🚨 <b>ABUSE LOG:</b> {uid}\nContent: {message.text}", parse_mode="HTML")
-        return bot.reply_to(message, "⚠️ <b>Warning:</b> Inappropriate language is not allowed!")
+        warn = "⚠️ <b>Warning:</b> Inappropriate language is not allowed!" if lang == 'en' else "⚠️ <b>चेतावनी:</b> आपत्तिजनक भाषा का प्रयोग वर्जित है!"
+        return bot.reply_to(message, warn, parse_mode="HTML")
 
     user_sessions[uid]['text'] = html.escape(message.text)
     user_cooldowns[uid] = current_time
     
-    markup = InlineKeyboardMarkup().add(InlineKeyboardButton("🕵️ Anonymous", callback_data="s_anon"), InlineKeyboardButton("👤 With Name", callback_data="s_name"))
-    bot.send_message(uid, "🛡 Privacy Mode:", reply_markup=markup)
+    btn1 = "🕵️ Anonymous" if lang == 'en' else "🕵️ गुप्त (Anonymous)"
+    btn2 = "👤 With Name" if lang == 'en' else "👤 नाम के साथ"
+    markup = InlineKeyboardMarkup().add(InlineKeyboardButton(btn1, callback_data="s_anon"), InlineKeyboardButton(btn2, callback_data="s_name"))
+    
+    p_txt = "🛡 Privacy Mode:" if lang == 'en' else "🛡 प्राइवेसी मोड चुनें:"
+    bot.send_message(uid, p_txt, reply_markup=markup)
 
 @bot.callback_query_handler(func=lambda c: c.data in ['s_anon', 's_name'])
 def final_submit(call):
@@ -226,18 +246,53 @@ def final_submit(call):
     tickets_db[tid] = {'uid': uid, 'text': data['text'], 'status': priority_label, 'cat': data['cat'], 'lang': data['lang'], 'admin_msg_id': admin_msg.message_id}
     save_tickets()
     
-    conf_msg = f"✅ <b>SUBMITTED!</b>\nYour ID: <code>{tid}</code>\n📝 Check progress using /status {tid}." if data['lang'] == 'en' else f"✅ <b>भेज दिया!</b>\nटिकट ID: <code>{tid}</code>\n📝 प्रोग्रेस देखें /status {tid}."
+    if data['lang'] == 'en':
+        conf_msg = f"✅ <b>SUBMITTED!</b>\nYour ID: <code>{tid}</code>\n📝 Check progress using /status {tid}." 
+    else:
+        conf_msg = f"✅ <b>भेज दिया!</b>\nटिकट ID: <code>{tid}</code>\n📝 प्रोग्रेस देखें /status {tid} से।"
+        
     id_card_photo = generate_ticket_card(tid, data['cat'], PIL_identity)
     bot.send_photo(uid, id_card_photo, caption=conf_msg, parse_mode="HTML")
 
 @bot.message_handler(commands=['status'])
 def check_status(message):
+    uid = message.chat.id
+    lang = user_sessions.get(uid, {}).get('lang', 'en')
     args = message.text.split()
-    if len(args) < 2: return
+    
+    if len(args) < 2: 
+        err = "⚠️ Usage: <code>/status T1234</code>" if lang == 'en' else "⚠️ ऐसे लिखें: <code>/status T1234</code>"
+        return bot.reply_to(message, err, parse_mode="HTML")
+        
     tid = args[1].upper()
     if tid in tickets_db:
         rate = f"\n⭐ Rating: {tickets_db[tid]['rating']}/5" if 'rating' in tickets_db[tid] else ""
-        bot.reply_to(message, f"🎫 <b>{tid} Status:</b> {tickets_db[tid]['status']}{rate}", parse_mode="HTML")
+        txt = f"🎫 <b>{tid} Status:</b> {tickets_db[tid]['status']}{rate}" if lang == 'en' else f"🎫 <b>{tid} स्टेटस:</b> {tickets_db[tid]['status']}{rate}"
+        bot.reply_to(message, txt, parse_mode="HTML")
+    else:
+        bot.reply_to(message, "❌ Not Found." if lang == 'en' else "❌ टिकट नहीं मिला।")
+
+@bot.message_handler(commands=['delete'])
+def delete_ticket(message):
+    uid = message.chat.id
+    lang = user_sessions.get(uid, {}).get('lang', 'en')
+    args = message.text.split()
+    
+    if len(args) < 2: 
+        err = "⚠️ Usage: <code>/delete T1234</code>" if lang == 'en' else "⚠️ ऐसे लिखें: <code>/delete T1234</code>"
+        return bot.reply_to(message, err, parse_mode="HTML")
+        
+    tid = args[1].upper()
+    if tid in tickets_db and tickets_db[tid]['uid'] == uid:
+        mid = tickets_db[tid].get('admin_msg_id')
+        del tickets_db[tid]
+        save_tickets()
+        bot.reply_to(message, "🗑️ <b>Deleted.</b>" if lang == 'en' else "🗑️ <b>डिलीट कर दिया गया।</b>", parse_mode="HTML")
+        if mid:
+            try: bot.delete_message(ADMIN_GROUP_ID, mid)
+            except: pass
+    else:
+        bot.reply_to(message, "❌ Denied." if lang == 'en' else "❌ अनुमति नहीं है या टिकट नहीं मिला।")
 
 @bot.message_handler(commands=['stats'], func=lambda m: m.chat.id == ADMIN_GROUP_ID)
 def show_stats(message):
@@ -248,20 +303,33 @@ def show_stats(message):
 @bot.message_handler(commands=['broadcast'], func=lambda m: m.chat.id == ADMIN_GROUP_ID)
 def broadcast(message):
     msg = message.text.split(' ', 1)
-    if len(msg) < 2: return
+    if len(msg) < 2: 
+        return bot.reply_to(message, "⚠️ Usage: <code>/broadcast Hello everyone!</code>", parse_mode="HTML")
     for u in list(registered_users):
         try: bot.send_message(u, f"📢 <b>ADMIN ANNOUNCEMENT</b>\n━━━━━━━━━━━━━━\n{msg[1]}", parse_mode="HTML")
         except: pass
     bot.reply_to(message, "✅ Broadcast Sent.")
+
+@bot.message_handler(commands=['unban'], func=lambda m: m.chat.id == ADMIN_GROUP_ID)
+def unban(message):
+    args = message.text.split()
+    if len(args) < 2: 
+        return bot.reply_to(message, "⚠️ Usage: <code>/unban 123456789</code>", parse_mode="HTML")
+    try:
+        uid = int(args[1])
+        if uid in banned_users: 
+            banned_users.remove(uid)
+            bot.reply_to(message, f"✅ User {uid} Unbanned.")
+    except: pass
 
 @bot.message_handler(commands=['export'], func=lambda m: m.chat.id == ADMIN_GROUP_ID)
 def export_csv(message):
     fn = "B3_Official_Records.csv"
     with open(fn, 'w', newline='', encoding='utf-8') as f:
         writer = csv.writer(f)
-        writer.writerow(['Ticket ID', 'Category', 'Status', 'User Rating', 'Complaint Details'])
+        writer.writerow(['Ticket ID', 'Category', 'Status', 'User Rating (Out of 5)', 'Complaint Details'])
         for tid, d in tickets_db.items():
-            rate = f"{d['rating']} Stars" if 'rating' in d else "Not Rated"
+            rate = f"{d['rating']}" if 'rating' in d else "Not Rated"
             writer.writerow([tid, strip_emojis(d['cat']), strip_emojis(d['status']), rate, d['text']])
     with open(fn, 'rb') as f: bot.send_document(ADMIN_GROUP_ID, f, caption="📄 Official Excel/CSV Records Generated")
     os.remove(fn)
@@ -269,21 +337,21 @@ def export_csv(message):
 @bot.message_handler(commands=['report'], func=lambda m: m.chat.id == ADMIN_GROUP_ID)
 def report(message):
     fn = "B3_Audit_Report.html"
-    colors = {'Solved': '#2ea043', 'Rejected': '#f85149', 'Working': '#d29922', 'Pending': '#8b949e', 'Unread': '#58a6ff', 'URGENT': '#ff4444'}
+    colors = {'Solved': '#2ea043', 'Rejected': '#f85149', 'Working': '#d29922', 'Pending': '#8b949e', 'Unread': '#58a6ff', 'URGENT / RED ALERT': '#ff4444'}
     ratings = [d['rating'] for d in tickets_db.values() if 'rating' in d]
-    avg = f"{round(sum(ratings)/len(ratings), 1)} / 5 ⭐" if ratings else "N/A"
+    avg = f"{round(sum(ratings)/len(ratings), 1)} / 5" if ratings else "N/A"
     
     html_c = f"<html><head><style>body{{background:#0d1117;color:#c9d1d9;font-family:sans-serif;padding:20px;}}h1{{text-align:center;color:#58a6ff;margin-bottom:5px;}}.trust-score{{text-align:center;color:#d29922;font-size:16px;margin-bottom:20px;font-weight:bold;}}table{{width:100%;border-collapse:collapse;margin-top:20px;}}th,td{{padding:12px;border:1px solid #30363d;text-align:left;}}th{{background:#21262d;color:#8b949e;text-transform:uppercase;font-size:12px;}}.badge{{padding:4px 8px;border-radius:4px;color:white;font-weight:bold;font-size:11px;}}</style></head><body><h1>🛡️ {BOT_NAME} DASHBOARD </h1><div class='trust-score'>School Safety Index: {avg}</div><table><tr><th>ID</th><th>Category</th><th>Status</th><th>Rating</th><th>Complaint</th></tr>"
     
     for tid, d in tickets_db.items():
         st = strip_emojis(d['status'])
         color_key = next((k for k in colors if k in st), 'Unread')
-        rate = f"{d['rating']} ⭐" if 'rating' in d else "-"
+        rate = f"{d['rating']}/5" if 'rating' in d else "-"
         html_c += f"<tr><td style='color:#f85149; font-family:monospace;'>{tid}</td><td>{strip_emojis(d['cat'])}</td><td><span class='badge' style='background:{colors[color_key]};'>{st.upper()}</span></td><td>{rate}</td><td>{d['text']}</td></tr>"
     html_c += "</table><p style='text-align:center; color:#8b949e;'>Generated by Claxen Systems Audit Engine</p></body></html>"
     
     with open(fn, 'w', encoding='utf-8') as f: f.write(html_c)
-    with open(fn, 'rb') as f: bot.send_document(ADMIN_GROUP_ID, f, caption="📊 Professional Audit Dashboard")
+    with open(fn, 'rb') as f: bot.send_document(ADMIN_GROUP_ID, f, caption="📊 Professional Audit Dashboard (Emoji-Free)")
     os.remove(fn)
 
 @bot.callback_query_handler(func=lambda c: c.data.startswith('rate_'))
@@ -292,7 +360,9 @@ def handle_rating(call):
     if tid in tickets_db:
         tickets_db[tid]['rating'] = int(stars)
         save_tickets()
-        bot.edit_message_text(f"Thank you for rating! You gave: {'⭐'*int(stars)}", call.message.chat.id, call.message.message_id)
+        lang = tickets_db[tid].get('lang', 'en')
+        ty_msg = f"Thank you! You rated: {'⭐'*int(stars)}" if lang == 'en' else f"धन्यवाद! आपकी रेटिंग: {'⭐'*int(stars)}"
+        bot.edit_message_text(ty_msg, call.message.chat.id, call.message.message_id)
 
 @bot.callback_query_handler(func=lambda c: c.data.startswith('st_') or c.data.startswith('admin_ban_'))
 def handle_admin(call):
@@ -302,11 +372,12 @@ def handle_admin(call):
     
     _, action, sid, tid = call.data.split('_')
     
+    # 🌟 MAXIMUM DETAILED PROFESSIONAL MESSAGES
     status_map = {
-        'rej': {'label': '❌ Rejected', 'en': f"❌ <b>TICKET REJECTED ({tid})</b>\nYour complaint has been rejected by administration. Possible reasons include insufficient info or no violation of school policies.", 'hi': f"❌ <b>रिपोर्ट खारिज ({tid})</b>\nस्कूल प्रशासन ने आपकी शिकायत को खारिज कर दिया है।"},
-        'pen': {'label': '⏳ Pending', 'en': f"⏳ <b>TICKET PENDING ({tid})</b>\nYour report has been placed in the pending queue. We are reviewing complaints sequentially.", 'hi': f"⏳ <b>प्रोग्रेस अपडेट ({tid})</b>\nआपकी रिपोर्ट अभी पेंडिंग में है। हमारी टीम समीक्षा करेगी।"},
-        'wrk': {'label': '⚙️ Working', 'en': f"⚙️ <b>INVESTIGATION STARTED ({tid})</b>\nSchool administration has started an investigation based on your report. We are actively working.", 'hi': f"⚙️ <b>कार्यवाही शुरू ({tid})</b>\nस्कूल प्रशासन ने आपकी शिकायत पर जांच शुरू कर दी है।"},
-        'sol': {'label': '✅ Solved', 'en': f"✅ <b>ISSUE RESOLVED ({tid})</b>\nThe school administration has successfully resolved your complaint. Thank you for helping us make B3 safer!\n\n<i>Please rate your experience below:</i>", 'hi': f"✅ <b>समस्या का समाधान! ({tid})</b>\nस्कूल प्रशासन ने आपकी शिकायत सुलझा ली है। समाधान हो गया!\n\n<i>कृपया अपनी रेटिंग दें:</i>"}
+        'rej': {'label': '❌ Rejected', 'en': f"❌ <b>TICKET REJECTED ({tid})</b>\nUnfortunately, your complaint has been officially rejected by the school administration. Possible reasons include insufficient information provided, or the issue not violating any school policies. If you think this is a mistake, please submit a new detailed report.", 'hi': f"❌ <b>रिपोर्ट खारिज ({tid})</b>\nक्षमा करें, स्कूल प्रशासन ने आपकी शिकायत को आधिकारिक तौर पर खारिज कर दिया है। अधूरी जानकारी या स्कूल के नियमों का उल्लंघन नहीं होना इसका कारण हो सकता है। कृपया नई रिपोर्ट दर्ज करें।"},
+        'pen': {'label': '⏳ Pending', 'en': f"⏳ <b>TICKET PENDING ({tid})</b>\nYour report has been successfully placed in the pending queue. The administration is reviewing complaints sequentially. Please be patient, we will get to your issue shortly.", 'hi': f"⏳ <b>प्रोग्रेस अपडेट ({tid})</b>\nआपकी रिपोर्ट अभी पेंडिंग कतार में सुरक्षित है। हमारी टीम शिकायतों की क्रमबद्ध समीक्षा कर रही है। कृपया धैर्य रखें, हम जल्द ही आपकी समस्या देखेंगे।"},
+        'wrk': {'label': '⚙️ Working', 'en': f"⚙️ <b>INVESTIGATION STARTED ({tid})</b>\nExcellent news! The school administration has officially started an investigation based on your report. We are actively working on the ground to fix this issue as soon as possible.", 'hi': f"⚙️ <b>कार्यवाही शुरू ({tid})</b>\nअच्छी खबर! स्कूल प्रशासन ने आपकी शिकायत पर आधिकारिक रूप से जांच और कार्यवाही शुरू कर दी है। हम इस समस्या को जल्द से जल्द सुलझाने के लिए काम कर रहे हैं।"},
+        'sol': {'label': '✅ Solved', 'en': f"✅ <b>ISSUE RESOLVED ({tid})</b>\nThe school administration has successfully investigated and resolved your complaint. Thank you for helping us make our school environment safer and better!\n\n<i>Please rate your overall experience below:</i>", 'hi': f"✅ <b>समस्या का समाधान! ({tid})</b>\nस्कूल प्रशासन ने आपकी शिकायत की सफलतापूर्वक जांच कर उसका समाधान कर लिया है। स्कूल को सुरक्षित और बेहतर बनाने में हमारी मदद करने के लिए धन्यवाद!\n\n<i>कृपया अपने अनुभव की रेटिंग दें:</i>"}
     }
     
     current = status_map.get(action)
@@ -314,33 +385,4 @@ def handle_admin(call):
         if action == 'sol':
             tickets_db[tid]['resolved_at'] = time.time()
             try: bot.send_message(ADMIN_GROUP_ID, f"🚮 <b>Burn Audit Log Activated:</b> Ticket {tid} will be permanently removed in 7 days.", parse_mode="HTML")
-            except: pass
-        
-        tickets_db[tid]['status'] = current['label']
-        save_tickets()
-        
-        old_text = call.message.text
-        new_text = html.escape(old_text.split('Status:')[0]) + f"Status: <b>{current['label']}</b>"
-        bot.edit_message_text(new_text, call.message.chat.id, call.message.message_id, reply_markup=call.message.reply_markup, parse_mode="HTML")
-        
-        lang = tickets_db[tid].get('lang', 'en')
-        
-        # Add Rating Keyboard if Solved
-        markup = None
-        if action == 'sol':
-            markup = InlineKeyboardMarkup(row_width=5)
-            markup.add(
-                InlineKeyboardButton("1⭐", callback_data=f"rate_1_{tid}"),
-                InlineKeyboardButton("2⭐", callback_data=f"rate_2_{tid}"),
-                InlineKeyboardButton("3⭐", callback_data=f"rate_3_{tid}"),
-                InlineKeyboardButton("4⭐", callback_data=f"rate_4_{tid}"),
-                InlineKeyboardButton("5⭐", callback_data=f"rate_5_{tid}")
-            )
-        try: bot.send_message(int(sid), current[lang], parse_mode="HTML", reply_markup=markup)
-        except: pass
-
-if __name__ == '__main__':
-    Thread(target=run_web).start()
-    Thread(target=purge_old_tickets_daemon).start()
-    bot.polling(none_stop=True)
-    
+  
