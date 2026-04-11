@@ -30,6 +30,12 @@ banned_users = set()
 user_sessions = {}
 user_cooldowns = {}
 URGENT_KEYWORDS = ['fight', 'bully', 'fire', 'khoon', 'marpeet', 'ladiya', 'accident', 'emergency', 'smoke']
+BAD_WORDS = ['bc', 'mc', 'tmkc', 'rndi', 'randi', 'chod', 'lund', 'land', 'bhosda']
+
+# --- HELPER FUNCTIONS ---
+def is_abusive(text):
+    t = text.lower()
+    return any(word in t for word in BAD_WORDS)
 
 def strip_emojis(text):
     for e in ['🎒', '💼', '🏢', '📌', '✅', '❌', '⏳', '⚙️', '🔴', '⭐']:
@@ -164,7 +170,10 @@ def final_submit(call):
     priority = "🆕 Unread"
     alert = "🚨"
     for kw in URGENT_KEYWORDS:
-        if kw in data['text'].lower(): priority = "🔴 URGENT"; alert = "🔥 <b>[URGENT]</b>"; break
+        if kw in data['text'].lower(): 
+            priority = "🔴 URGENT"
+            alert = "🔥 <b>[URGENT]</b>"
+            break
     
     markup = InlineKeyboardMarkup(row_width=2).add(
         InlineKeyboardButton("❌ Reject", callback_data=f"st_rej_{uid}_{tid}"),
@@ -243,12 +252,27 @@ def handle_rate(call):
 def handle_admin(call):
     if 'ban' in call.data: return bot.answer_callback_query(call.id, "Banned!")
     _, act, sid, tid = call.data.split('_')
+    
+    # Text mapping safe from line breaks
+    m_en_rej = "❌ <b>TICKET REJECTED</b>\nComplaint rejected by administration. Possible reasons: insufficient info or no policy violation."
+    m_hi_rej = "❌ <b>रिपोर्ट खारिज</b>\nअधूरी जानकारी या नियमों का उल्लंघन नहीं होने के कारण शिकायत खारिज कर दी गई है।"
+    
+    m_en_pen = "⏳ <b>TICKET PENDING</b>\nPlaced in queue for sequential review. Please wait."
+    m_hi_pen = "⏳ <b>पेंडिंग कतार</b>\nआपकी रिपोर्ट समीक्षा के लिए कतार में है।"
+    
+    m_en_wrk = "⚙️ <b>INVESTIGATION STARTED</b>\nAdministration has started active investigation on the ground."
+    m_hi_wrk = "⚙️ <b>कार्यवाही शुरू</b>\nप्रशासन ने जांच शुरू कर दी है।"
+    
+    m_en_sol = "✅ <b>ISSUE RESOLVED</b>\nResolved! Thank you for B3 safety.\nPlease rate your experience:"
+    m_hi_sol = "✅ <b>समाधान हो गया!</b>\nB3 को सुरक्षित बनाने के लिए धन्यवाद।\nकृपया रेटिंग दें:"
+    
     s_map = {
-        'rej': ('❌ Rejected', 'Rejected. Lack of info or no violation.', 'खारिज। अधूरी जानकारी या नियमों का उल्लंघन नहीं।'),
-        'pen': ('⏳ Pending', 'Placed in queue for review.', 'पेंडिंग कतार में है। समीक्षा की जा रही है।'),
-        'wrk': ('⚙️ Working', 'Investigation started on the ground.', 'कार्यवाही शुरू कर दी गई है।'),
-        'sol': ('✅ Solved', 'Resolved! Thank you for B3 safety.', 'समाधान हो गया! B3 को सुरक्षित बनाने के लिए धन्यवाद।')
+        'rej': ('❌ Rejected', m_en_rej, m_hi_rej),
+        'pen': ('⏳ Pending', m_en_pen, m_hi_pen),
+        'wrk': ('⚙️ Working', m_en_wrk, m_hi_wrk),
+        'sol': ('✅ Solved', m_en_sol, m_hi_sol)
     }
+    
     label, m_en, m_hi = s_map[act]
     if tid in tickets_db:
         if act == 'sol': tickets_db[tid]['resolved_at'] = time.time()
